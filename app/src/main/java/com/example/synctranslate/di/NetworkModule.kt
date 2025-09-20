@@ -2,6 +2,7 @@ package com.example.synctranslate.di
 
 import com.example.synctranslate.data.remote.http.ApiConfig
 import com.example.synctranslate.data.remote.http.ApiService
+import com.example.synctranslate.data.remote.webrtc.SignalingClient
 import com.google.gson.Gson
 import dagger.Module
 import dagger.Provides
@@ -18,38 +19,35 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    @Provides
-    @Singleton
+    @Provides @Singleton
+    fun provideGson(): Gson = Gson()
+
+    @Provides @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         return OkHttpClient.Builder()
-            .addInterceptor(HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
-            })
+            .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY })
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
-    @Provides
-    @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient, apiConfig: ApiConfig): Retrofit {
+    @Provides @Singleton
+    fun provideRetrofit(okHttpClient: OkHttpClient, gson: Gson, apiConfig: ApiConfig): Retrofit {
         return Retrofit.Builder()
             .baseUrl(apiConfig.baseUrl)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
     }
 
-    @Provides
-    @Singleton
+    @Provides @Singleton
     fun provideApiService(retrofit: Retrofit): ApiService {
         return retrofit.create(ApiService::class.java)
     }
 
-    @Provides
-    @Singleton
-    fun provideGson(): Gson {
-        return Gson()
+    @Provides @Singleton
+    fun provideSignalingClient(okHttpClient: OkHttpClient, gson: Gson): SignalingClient {
+        return SignalingClient(okHttpClient, gson)
     }
 }

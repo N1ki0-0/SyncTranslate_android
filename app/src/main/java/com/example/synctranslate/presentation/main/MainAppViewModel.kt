@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.synctranslate.data.local.PreferencesManager
 import com.example.synctranslate.data.remote.webrtc.SignalingEvent
 import com.example.synctranslate.domain.repository.AppRepository
+import com.example.synctranslate.util.AudioRecorderUtil
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,13 +17,18 @@ import javax.inject.Inject
 @HiltViewModel
 class MainAppViewModel @Inject constructor(
     private val appRepository: AppRepository,
-    private val preferencesManager: PreferencesManager
+    private val preferencesManager: PreferencesManager,
+    val audioRecorderUtil: AudioRecorderUtil
 ) : ViewModel() {
 
     private val _rtcState = MutableStateFlow(RtcState.IDLE)
     val rtcState = _rtcState.asStateFlow()
 
     private var signalingJob: Job? = null
+
+    fun hasAudioPermission(): Boolean{
+        return audioRecorderUtil.hasRecordAudioPermission()
+    }
 
     fun startCommunication() {
         if (_rtcState.value != RtcState.IDLE && _rtcState.value != RtcState.CLOSED) return

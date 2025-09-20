@@ -1,8 +1,10 @@
 package com.example.synctranslate.di
 
 import android.content.Context
-import com.example.synctranslate.util.AudioPlayerUtil
+import com.example.synctranslate.data.repository.AppRepositoryImpl
+import com.example.synctranslate.domain.repository.AppRepository
 import com.example.synctranslate.util.AudioRecorderUtil
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -12,13 +14,18 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-object AudioModule {
+abstract class AudioModule {
 
-    @Provides
+    @Binds
     @Singleton
-    fun provideAudioRecorderUtil(@ApplicationContext context: Context): AudioRecorderUtil {
-        return AudioRecorderUtil(context)
+    abstract fun bindAppRepository(impl: AppRepositoryImpl): AppRepository
+
+
+    companion object {
+        @Provides
+        @Singleton
+        fun provideAudioRecorderUtil(@ApplicationContext context: Context): AudioRecorderUtil {
+            return AudioRecorderUtil(context)
+        }
     }
-
-
 }

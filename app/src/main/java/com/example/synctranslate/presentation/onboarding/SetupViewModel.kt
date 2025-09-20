@@ -3,7 +3,7 @@ package com.example.synctranslate.presentation.onboarding
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.synctranslate.domain.repository.AudioRepository
+import com.example.synctranslate.domain.repository.AppRepository
 import com.example.synctranslate.domain.useCase.CheckSetupCompletedUseCase
 import com.example.synctranslate.domain.useCase.CompleteSetupUseCase
 import com.example.synctranslate.util.AudioRecorderUtil
@@ -21,7 +21,7 @@ enum class RecordingState { IDLE, RECORDING, STOPPED, SENDING, SENT, ERROR }
 class SetupViewModel @Inject constructor(
     private val checkSetupCompletedUseCase: CheckSetupCompletedUseCase,
     private val completeSetupUseCase: CompleteSetupUseCase,
-    private val audioRepository: AudioRepository, // Инжектируем репозиторий
+    private val appRepository: AppRepository, // Инжектируем репозиторий
     val audioRecorderUtil: AudioRecorderUtil
 ) : ViewModel() {
 
@@ -105,7 +105,7 @@ class SetupViewModel @Inject constructor(
         viewModelScope.launch {
             _recordingState.value = RecordingState.SENDING
             try {
-                val success = audioRepository.uploadSetupAudio(fileToSend) // Используем репозиторий
+                val success = appRepository.uploadSetupAudio(fileToSend) // Используем репозиторий
                 if (success) {
                     _recordingState.value = RecordingState.SENT
                     completeSetupUseCase() // Отмечаем, что сетап пройден
