@@ -90,5 +90,12 @@ fun SetupScreen(
                 }
             }
         }
+
+        TextButton(
+            onClick = { viewModel.skipSetup() },
+            modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 32.dp)
+        ) {
+            Text("Пропустить этот шаг")
+        }
     }
 }

@@ -42,9 +42,9 @@ object AppModule {
     @Singleton
     fun provideWebRtcClient(
         @ApplicationContext context: Context,
-        signalingClient: SignalingClient
+        gson: Gson
     ): WebRtcClient {
-        return WebRtcClient(context, signalingClient)
+        return WebRtcClient(context, gson)
     }
 
     // --- Репозитории (здесь мы исправляем ошибки MissingBinding) ---

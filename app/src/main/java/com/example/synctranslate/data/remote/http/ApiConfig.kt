@@ -9,7 +9,11 @@ class ApiConfig @Inject constructor(
 ) {
     // Теперь это не константы, а вычисляемые свойства
     val baseUrl: String
-        get() = "http://${preferencesManager.serverIp ?: "127.0.0.1"}:8000"
+        get() {
+            val ip = preferencesManager.serverIp ?: "127.0.0.1"
+            val port = preferencesManager.serverPort // Используем порт из настроек
+            return "http://$ip:$port/"
+        }
 
     val trainingEndpoint: String
         get() = "$baseUrl/train/voice"

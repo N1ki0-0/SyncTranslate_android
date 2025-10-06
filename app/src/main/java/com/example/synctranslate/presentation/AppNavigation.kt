@@ -1,11 +1,14 @@
 package com.example.synctranslate.presentation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -56,16 +59,16 @@ fun AppNavigation(requestAudioPermission: () -> Unit,
 
     // Пока идет проверка, можно показать экран загрузки
     if (isLoading) {
-        // Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        //     CircularProgressIndicator()
-        // }
+         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+             CircularProgressIndicator()
+         }
         return // или показать сплэш-скрин
     }
 
     val startDestination = remember {
         if (preferencesManager.serverIp.isNullOrBlank()) {
             AppRoutes.IP_CONFIG
-        } else if (!preferencesManager.isSetupCompleted) {
+        } else if (preferencesManager.isSetupCompleted) {
             AppRoutes.SETUP
         } else {
             AppRoutes.MAIN
@@ -93,7 +96,7 @@ fun AppNavigation(requestAudioPermission: () -> Unit,
                 IpConfigScreen(
                     onIpSaved = {
                         // После сохранения IP переходим на экран настройки голоса
-                        navController.navigate(AppRoutes.SETUP) {
+                        navController.navigate(AppRoutes.MAIN) {
                             popUpTo(AppRoutes.IP_CONFIG) { inclusive = true }
                         }
                     }

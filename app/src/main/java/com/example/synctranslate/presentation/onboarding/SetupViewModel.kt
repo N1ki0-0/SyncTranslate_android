@@ -3,6 +3,7 @@ package com.example.synctranslate.presentation.onboarding
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.synctranslate.data.local.PreferencesManager
 import com.example.synctranslate.domain.repository.AppRepository
 import com.example.synctranslate.domain.useCase.CheckSetupCompletedUseCase
 import com.example.synctranslate.domain.useCase.CompleteSetupUseCase
@@ -21,6 +22,7 @@ enum class RecordingState { IDLE, RECORDING, STOPPED, SENDING, SENT, ERROR }
 class SetupViewModel @Inject constructor(
     private val checkSetupCompletedUseCase: CheckSetupCompletedUseCase,
     private val completeSetupUseCase: CompleteSetupUseCase,
+    private val preferencesManager: PreferencesManager,
     private val appRepository: AppRepository, // Инжектируем репозиторий
     val audioRecorderUtil: AudioRecorderUtil
 ) : ViewModel() {
@@ -108,6 +110,7 @@ class SetupViewModel @Inject constructor(
                 val success = appRepository.uploadSetupAudio(fileToSend) // Используем репозиторий
                 if (success) {
                     _recordingState.value = RecordingState.SENT
+                    preferencesManager.isSetupCompleted = true // <-- Прямой вызов
                     completeSetupUseCase() // Отмечаем, что сетап пройден
                     _isSetupCompleted.value = true // Обновляем UI
                     fileToSend.delete() // Удаляем файл после успешной отправки
@@ -121,6 +124,14 @@ class SetupViewModel @Inject constructor(
                 _error.value = "Ошибка: ${e.message}"
                 Log.e("SetupViewModel", "Error sending recording", e)
             }
+        }
+    }
+
+    fun skipSetup() {
+        viewModelScope.launch {
+            // Мы просто отмечаем, что настройка пройдена, и переходим дальше
+            preferencesManager.isSetupCompleted = true
+            _isSetupCompleted.value = true
         }
     }
 
