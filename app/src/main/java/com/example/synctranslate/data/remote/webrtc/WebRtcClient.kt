@@ -5,15 +5,16 @@ import com.example.synctranslate.util.AppLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
-import android.util.Base64
 import com.google.gson.Gson
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.webrtc.*
 import org.webrtc.audio.JavaAudioDeviceModule
 import java.nio.ByteBuffer
+import kotlin.text.Charsets
 import kotlin.coroutines.resume
 
 data class AudioPacket(val type: String = "audio", val data: String)
@@ -51,19 +52,73 @@ class WebRtcClient @Inject constructor(
     private var dataChannel: DataChannel? = null
 
     // Поток для входящих аудиоданных от сервера
-    private val _incomingAudioDataFlow = MutableSharedFlow<ByteArray>()
+    private val _incomingAudioDataFlow = MutableSharedFlow<ByteArray>(extraBufferCapacity = 64)
     val incomingAudioDataFlow = _incomingAudioDataFlow.asSharedFlow()
+
+    private val _dataChannelReadyFlow = MutableStateFlow(false)
+    val dataChannelReadyFlow = _dataChannelReadyFlow.asStateFlow()
+
+    @Volatile
+    private var isReadyForStreaming = false
+
+    private val audioStartPayload = mapOf(
+        "type" to "start",
+        "samplerate" to 48000,
+        "channels" to 1,
+        "dtype" to "int16",
+        "frames_per_chunk" to 1024
+    )
 
     private val dataChannelObserver = object : DataChannel.Observer {
         override fun onBufferedAmountChange(previousAmount: Long) {}
         override fun onStateChange() {
-            AppLogger.i("AudioFlow", "3. WebRTC: Состояние DataChannel изменилось на: ${dataChannel?.state()}")
+            val state = dataChannel?.state()
+            AppLogger.i("AudioFlow", "3. WebRTC: Состояние DataChannel изменилось на: $state")
+            if (state == DataChannel.State.OPEN) {
+                isReadyForStreaming = false
+                _dataChannelReadyFlow.value = false
+                sendStartMessage()
+            } else if (state == DataChannel.State.CLOSING || state == DataChannel.State.CLOSED) {
+                isReadyForStreaming = false
+                _dataChannelReadyFlow.value = false
+            }
         }
         override fun onMessage(buffer: DataChannel.Buffer) {
-            // Просто берем сырые байты и отправляем их в плеер
-            val data = ByteArray(buffer.data.remaining())
-            buffer.data.get(data)
-            _incomingAudioDataFlow.tryEmit(data)
+            if (buffer.binary) {
+                val data = ByteArray(buffer.data.remaining())
+                buffer.data.get(data)
+                if (data.isNotEmpty()) {
+                    _incomingAudioDataFlow.tryEmit(data)
+                }
+            } else {
+                val bytes = ByteArray(buffer.data.remaining())
+                buffer.data.get(bytes)
+                val message = bytes.toString(Charsets.UTF_8)
+                handleControlMessage(message)
+            }
+        }
+    }
+
+    private fun sendStartMessage() {
+        val message = gson.toJson(audioStartPayload)
+        val buffer = DataChannel.Buffer(ByteBuffer.wrap(message.toByteArray(Charsets.UTF_8)), false)
+        dataChannel?.send(buffer)
+        AppLogger.i("AudioFlow", "3. WebRTC: Отправил параметры аудио на сервер")
+    }
+
+    private fun handleControlMessage(message: String) {
+        runCatching {
+            val packet = gson.fromJson(message, IncomingPacket::class.java)
+            when (packet?.type) {
+                "ack_start" -> {
+                    isReadyForStreaming = true
+                    _dataChannelReadyFlow.value = true
+                    AppLogger.i("AudioFlow", "3. WebRTC: Получен ack от сервера, можно стримить")
+                }
+                else -> AppLogger.d("AudioFlow", "3. WebRTC: Неизвестное сообщение канала: $message")
+            }
+        }.onFailure {
+            AppLogger.e("AudioFlow", "3. WebRTC: Ошибка обработки control-сообщения", it)
         }
     }
 
@@ -136,6 +191,11 @@ class WebRtcClient @Inject constructor(
 
     fun sendAudioData(data: ByteArray) {
         // --- ШАГ 4: ФИНАЛЬНАЯ ПРОВЕРКА ПЕРЕД ОТПРАВКОЙ ---
+        if (!isReadyForStreaming) {
+            AppLogger.w("AudioFlow", "4. WebRTC: !!! Канал ещё не готов, дропаю ${data.size} байт")
+            return
+        }
+
         if (dataChannel?.state() == DataChannel.State.OPEN) {
             AppLogger.i("AudioFlow", "4. WebRTC: >>> DataChannel ОТКРЫТ. Отправляю ${data.size} байт.")
             val byteBuffer = ByteBuffer.wrap(data)
@@ -157,6 +217,8 @@ class WebRtcClient @Inject constructor(
         peerConnection?.close()
         dataChannel = null
         peerConnection = null
+        isReadyForStreaming = false
+        _dataChannelReadyFlow.value = false
     }
 }
 

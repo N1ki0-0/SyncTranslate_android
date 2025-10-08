@@ -2,18 +2,18 @@ package com.example.synctranslate.presentation.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.synctranslate.data.local.PreferencesManager
-import com.example.synctranslate.data.remote.webrtc.SignalingEvent
 import com.example.synctranslate.data.remote.webrtc.WebRtcClient
 import com.example.synctranslate.domain.repository.AppRepository
 import com.example.synctranslate.util.AppLogger
 import com.example.synctranslate.util.AudioPlayerUtil
 import com.example.synctranslate.util.AudioRecorderUtil
-import com.example.synctranslate.util.AudioSessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -107,18 +107,22 @@ class MainAppViewModel @Inject constructor(
                 audioPlayerUtil.playAudioChunk(audioData) }
             .launchIn(viewModelScope)
 
-        // 3. Начинаем запись с микрофона
-        audioRecorderUtil.startStreamingAudio(viewModelScope)
+        // 3. Ждем, когда DataChannel станет готов к приему аудио, и только после этого запускаем микрофон
+        audioSenderJob = viewModelScope.launch {
+            webRtcClient.dataChannelReadyFlow
+                .filter { it }
+                .first()
 
-        // 4. Начинаем слушать микрофон и отправлять данные в WebRtcClient
-        audioSenderJob = audioRecorderUtil.getAudioStream()
-            .onEach { audioData ->
+            AppLogger.i("AudioFlow", "3. ViewModel: DataChannel готов, запускаю микрофон")
+            audioRecorderUtil.startStreamingAudio(this)
+
+            audioRecorderUtil.getAudioStream().collect { audioData ->
                 AppLogger.d("AudioFlow", "2. ViewModel: Получен чанк для отправки ${audioData.size} байт")
                 webRtcClient.sendAudioData(audioData)
                 AppLogger.d("AudioFlow", "Sidetone: Воспроизвожу локально ${audioData.size} байт")
                 audioPlayerUtil.playAudioChunk(audioData)
             }
-            .launchIn(viewModelScope)
+        }
     }
 
     fun stopCommunication() {
